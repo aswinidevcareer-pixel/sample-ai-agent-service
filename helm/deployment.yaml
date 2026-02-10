@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-agent
+spec:
+  replicas: 1
+  template:
+    spec:
+      # HELM-008: Host network enabled
+      hostNetwork: true
+      containers:
+        - name: ai-agent
+          image: ai-agent:latest
+          # HELM-003: Privileged container
+          securityContext:
+            privileged: true
+          # HELM-004: Run as root
+            runAsUser: 0
+            runAsNonRoot: false
+          env:
+            # HELM-007: Plaintext secret
+            - name: DB_PASSWORD
+              value: "supersecretpassword"
+            - name: API_KEY
+              password: "sk-live-abc123def456"
