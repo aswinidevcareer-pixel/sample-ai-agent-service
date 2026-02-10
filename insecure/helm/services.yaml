@@ -1,0 +1,42 @@
+# =============================================================================
+# INSECURE HELM — Exposed Kubernetes Services
+# =============================================================================
+
+# =============================================================================
+# HELM-001: Exposed Service Type — LoadBalancer (HIGH)
+# This creates a cloud load balancer with a PUBLIC IP. The agent's API
+# is accessible from the internet without any network-level restriction.
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-agent-public-lb
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 8080
+      targetPort: 8080
+      name: agent-api
+  selector:
+    app: ai-agent
+
+---
+
+# =============================================================================
+# HELM-001: Exposed Service Type — NodePort (HIGH)
+# Exposes the service on a static port on every node in the cluster.
+# Any network-level access to the nodes can reach this service.
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-agent-nodeport
+spec:
+  type: NodePort
+  ports:
+    - port: 8080
+      targetPort: 8080
+      nodePort: 30080
+      name: agent-api
+  selector:
+    app: ai-agent

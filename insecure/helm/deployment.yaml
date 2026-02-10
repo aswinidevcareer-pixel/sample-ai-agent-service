@@ -1,0 +1,85 @@
+# =============================================================================
+# INSECURE HELM — AI Agent Kubernetes Deployment
+# =============================================================================
+# This deployment manifests every Helm/K8s anti-pattern that
+# guardrail-scanner detects. DO NOT use in production.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-agent-deployment
+  labels:
+    app: ai-agent
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: ai-agent
+  template:
+    metadata:
+      labels:
+        app: ai-agent
+    spec:
+      # =====================================================================
+      # HELM-008: Host Network Enabled (HIGH)
+      # Container shares the host's network namespace. It can access any
+      # service on the node's network, sniff traffic, and bind to any port.
+      # =====================================================================
+      hostNetwork: true
+
+      containers:
+        - name: ai-agent
+          image: ai-agent:latest
+
+          # =================================================================
+          # HELM-003: Privileged Container (CRITICAL)
+          # Container runs with full root-level kernel capabilities.
+          # It can load kernel modules, access all devices, and escape
+          # the container sandbox.
+          # =================================================================
+          securityContext:
+            privileged: true
+
+            # ===============================================================
+            # HELM-004: Run As Root (HIGH)
+            # Container runs as UID 0 (root). A container escape gives
+            # the attacker root access on the host node.
+            # ===============================================================
+            runAsUser: 0
+            runAsNonRoot: false
+
+          env:
+            # ===============================================================
+            # HELM-007: Plaintext Secrets in YAML (CRITICAL)
+            # Secrets are hardcoded in the manifest. Anyone with read
+            # access to the repo or cluster can extract these values.
+            # ===============================================================
+            - name: DB_PASSWORD
+              value: "SuperSecretDBPassword123!"
+            - name: OPENAI_KEY
+              # api_key pattern triggers the rule
+              api_key: "sk-live-production-key-abc123def456"
+            - name: AUTH_TOKEN
+              token: "eyJhbGciOiJIUzI1NiJ9.prod-token-value"
+
+          # =================================================================
+          # HELM-005: Missing Resource Limits (MEDIUM)
+          # No CPU or memory limits. A runaway agent process (e.g.,
+          # infinite loop from prompt injection) consumes unbounded
+          # resources, starving other pods on the node.
+          # =================================================================
+          # resources:        <-- intentionally absent
+          #   limits:
+          #     cpu: "1"
+          #     memory: "1Gi"
+
+          ports:
+            - containerPort: 8080
+
+# =============================================================================
+# NOTE: HELM-002 (Missing Network Policy) and HELM-006 (Missing Security
+# Context) are absence-based rules. They trigger because this deployment
+# has NO NetworkPolicy resource and the Deployment-level securityContext
+# is missing (only container-level exists, which may not satisfy the check
+# depending on implementation).
+# =============================================================================

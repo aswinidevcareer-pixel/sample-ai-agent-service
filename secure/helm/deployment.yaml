@@ -1,0 +1,112 @@
+# =============================================================================
+# SECURE HELM — AI Agent Kubernetes Deployment
+# =============================================================================
+# This manifest demonstrates the CORRECT way to deploy an AI agent on K8s.
+# The scanner should produce ZERO findings on this file.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-agent
+  labels:
+    app: ai-agent
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: ai-agent
+  template:
+    metadata:
+      labels:
+        app: ai-agent
+    spec:
+      # SECURE: Host network disabled (default, but explicit)
+      hostNetwork: false
+
+      # SECURE: Pod-level security context
+      securityContext:
+        fsGroup: 1000
+
+      containers:
+        - name: ai-agent
+          image: ai-agent:v2.1.0   # Pinned version, not :latest
+
+          # SECURE: Non-privileged, non-root, read-only filesystem
+          securityContext:
+            privileged: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+
+          # SECURE: Resource limits defined
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+
+          # SECURE: Secrets from K8s Secret resources, not plaintext
+          env:
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ai-agent-secrets
+                  key: openai-api-key
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ai-agent-secrets
+                  key: db-password
+
+          ports:
+            - containerPort: 8080
+
+---
+
+# SECURE: ClusterIP service (internal only, not exposed)
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-agent
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+  selector:
+    app: ai-agent
+
+---
+
+# SECURE: Network policy restricts traffic
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ai-agent-network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app: ai-agent
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: api-gateway
+      ports:
+        - port: 8080
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: vector-db
+      ports:
+        - port: 6333
